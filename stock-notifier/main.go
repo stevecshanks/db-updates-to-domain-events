@@ -27,7 +27,13 @@ type stockUpdateMessage struct {
 	Payload stockPayload
 }
 
-func processMessages(r *kafka.Reader) {
+type stockNotification struct {
+	Type      string
+	ProductID int `json:"product_id"`
+	Quantity  int
+}
+
+func processMessages(r *kafka.Reader, w *kafka.Writer) {
 	ctx := context.Background()
 
 	for {
@@ -57,6 +63,20 @@ func processMessages(r *kafka.Reader) {
 		}
 
 		log.Printf("Product with ID %d had quantity changed from %d to %d", stockUpdate.Payload.Before.ProductID, stockUpdate.Payload.Before.Quantity, stockUpdate.Payload.After.Quantity)
+
+		if stockUpdate.Payload.After.Quantity == 0 {
+			notification := stockNotification{Type: "OutOfStock", ProductID: stockUpdate.Payload.After.ProductID, Quantity: 0}
+			b, err := json.Marshal(notification)
+			if err != nil {
+				log.Println("Error encoding notification: " + err.Error())
+				continue
+			}
+
+			err = w.WriteMessages(ctx, kafka.Message{Value: b})
+			if err != nil {
+				log.Println("Error writing notification: " + err.Error())
+			}
+		}
 	}
 }
 
@@ -66,6 +86,11 @@ func main() {
 		Topic:   "dbserver1.inventory.products_on_hand",
 	})
 
+	w := &kafka.Writer{
+		Addr:  kafka.TCP("kafka:9092"),
+		Topic: "stock-notifications",
+	}
+
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 
@@ -74,14 +99,21 @@ func main() {
 	go func() {
 		<-shutdown
 		log.Println("Gracefully shutting down...")
+
 		if err := r.Close(); err != nil {
 			log.Println("Failed to close reader: ", err)
 		}
 		log.Println("Closed reader")
+
+		if err := w.Close(); err != nil {
+			log.Println("Failed to close writer: ", err)
+		}
+		log.Println("Closed writer")
+
 		done <- true
 	}()
 
-	processMessages(r)
+	processMessages(r, w)
 
 	<-done
 	log.Println("Done!")

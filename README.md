@@ -1,5 +1,9 @@
 # DB Updates -> Domain Events
 
+A simple example app built on top of the [Debezium tutorial](https://github.com/debezium/debezium-examples/tree/main/tutorial). Updates to the database will be captured, and domain events will be published to a Kafka topic.
+
+Use the tooling below to make changes to the `products_on_hand` table. Interesting events (like a product going out of stock) will be published to the `stock-notifications` topic.
+
 ## Setup
 
 To run:
@@ -31,5 +35,5 @@ docker compose --profile=tools run watch-topic <topic-name>
 e.g.
 
 ```bash
-docker compose --profile=tools run watch-topic dbserver1.inventory.customers
+docker compose --profile=tools run watch-topic stock-notifications
 ```

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log"
@@ -11,6 +12,20 @@ import (
 
 	kafka "github.com/segmentio/kafka-go"
 )
+
+type stockStatus struct {
+	ProductID int `json:"product_id"`
+	Quantity  int
+}
+
+type stockPayload struct {
+	Before *stockStatus
+	After  *stockStatus
+}
+
+type stockUpdateMessage struct {
+	Payload stockPayload
+}
 
 func processMessages(r *kafka.Reader) {
 	ctx := context.Background()
@@ -24,7 +39,24 @@ func processMessages(r *kafka.Reader) {
 			log.Println("Could not read message: " + err.Error())
 
 		}
-		log.Println("Received message: " + string(msg.Value))
+
+		var stockUpdate stockUpdateMessage
+		err = json.Unmarshal(msg.Value, &stockUpdate)
+		if err != nil {
+			log.Println("Could not parse message: " + err.Error())
+		}
+
+		if stockUpdate.Payload.Before == nil || stockUpdate.Payload.After == nil {
+			log.Println("Message was for create/delete, ignoring...")
+			continue
+		}
+
+		if stockUpdate.Payload.Before.Quantity == stockUpdate.Payload.After.Quantity {
+			log.Println("Message was not for quantity change, ignoring...")
+			continue
+		}
+
+		log.Printf("Product with ID %d had quantity changed from %d to %d", stockUpdate.Payload.Before.ProductID, stockUpdate.Payload.Before.Quantity, stockUpdate.Payload.After.Quantity)
 	}
 }
 

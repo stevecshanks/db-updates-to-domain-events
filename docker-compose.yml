@@ -36,3 +36,11 @@ services:
      - CONFIG_STORAGE_TOPIC=my_connect_configs
      - OFFSET_STORAGE_TOPIC=my_connect_offsets
      - STATUS_STORAGE_TOPIC=my_connect_statuses
+
+  psql:
+    image: debezium/example-postgres:1.7
+    profiles:
+      - tools
+    links:
+      - postgres
+    command: ["psql", "host=postgres user=postgres password=postgres dbname=postgres options=--search_path=inventory"]

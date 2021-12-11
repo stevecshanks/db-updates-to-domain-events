@@ -44,3 +44,15 @@ services:
     links:
       - postgres
     command: ["psql", "host=postgres user=postgres password=postgres dbname=postgres options=--search_path=inventory"]
+
+  watch-topic:
+    image: debezium/kafka:1.7
+    profiles:
+      - tools
+    links:
+     - zookeeper
+     - kafka
+    environment:
+      - ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_BROKER=kafka:9092
+    entrypoint: ["/docker-entrypoint.sh", "watch-topic", "-a", "-k"]

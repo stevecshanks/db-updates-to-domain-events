@@ -21,3 +21,15 @@ To access the database:
 ```bash
 docker compose --profile=tools run psql
 ```
+
+To watch a topic:
+
+```bash
+docker compose --profile=tools run watch-topic <topic-name>
+```
+
+e.g.
+
+```bash
+docker compose --profile=tools run watch-topic dbserver1.inventory.customers
+```

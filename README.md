@@ -9,7 +9,7 @@ Use the tooling below to make changes to the `products_on_hand` table. Interesti
 To run:
 
 ```bash
-docker compose up -d
+docker compose up
 ```
 
 Then, in another terminal:
@@ -36,4 +36,10 @@ e.g.
 
 ```bash
 docker compose --profile=tools run watch-topic stock-notifications
+```
+
+To run tests:
+
+```bash
+docker compose --profile=tools run test
 ```

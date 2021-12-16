@@ -60,3 +60,12 @@ services:
       - ZOOKEEPER_CONNECT=zookeeper:2181
       - KAFKA_BROKER=kafka:9092
     entrypoint: ["/docker-entrypoint.sh", "watch-topic", "-a", "-k"]
+
+  test:
+    build:
+      context: ./stock-notifier
+    profiles:
+      - tools
+    entrypoint: ["go", "test", "./..."]
+    volumes:
+      - ./stock-notifier:/go/src/stock-notifier

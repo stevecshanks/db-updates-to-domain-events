@@ -13,43 +13,22 @@ import (
 	kafka "github.com/segmentio/kafka-go"
 )
 
-type stockStatus struct {
-	ProductID int `json:"product_id"`
-	Quantity  int
-}
-
-type stockPayload struct {
-	Before *stockStatus
-	After  *stockStatus
-}
-
-type stockUpdateMessage struct {
-	Payload stockPayload
-}
-
 type stockNotification struct {
 	Type      string
 	ProductID int `json:"product_id"`
 	Quantity  int
 }
 
-func processMessages(r *kafka.Reader, w *kafka.Writer) {
+func processMessages(consumer *ProductsOnHandConsumer, w *kafka.Writer) {
 	ctx := context.Background()
 
 	for {
-		msg, err := r.ReadMessage(ctx)
+		stockUpdate, err := consumer.ReadMessage(ctx)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			log.Println("Could not read message: " + err.Error())
-
-		}
-
-		var stockUpdate stockUpdateMessage
-		err = json.Unmarshal(msg.Value, &stockUpdate)
-		if err != nil {
-			log.Println("Could not parse message: " + err.Error())
+			log.Println("Error reading stock update: " + err.Error())
 		}
 
 		if stockUpdate.Payload.Before == nil || stockUpdate.Payload.After == nil {
@@ -81,10 +60,7 @@ func processMessages(r *kafka.Reader, w *kafka.Writer) {
 }
 
 func main() {
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{"kafka:9092"},
-		Topic:   "dbserver1.inventory.products_on_hand",
-	})
+	consumer := NewProductsOnHandConsumer()
 
 	w := &kafka.Writer{
 		Addr:  kafka.TCP("kafka:9092"),
@@ -98,23 +74,22 @@ func main() {
 
 	go func() {
 		<-shutdown
+
 		log.Println("Gracefully shutting down...")
 
-		if err := r.Close(); err != nil {
-			log.Println("Failed to close reader: ", err)
+		if err := consumer.Close(); err != nil {
+			log.Println("Failed to close consumer: ", err)
 		}
-		log.Println("Closed reader")
-
 		if err := w.Close(); err != nil {
 			log.Println("Failed to close writer: ", err)
 		}
-		log.Println("Closed writer")
 
 		done <- true
 	}()
 
-	processMessages(r, w)
+	processMessages(consumer, w)
 
 	<-done
+
 	log.Println("Done!")
 }

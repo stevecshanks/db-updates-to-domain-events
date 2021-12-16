@@ -29,6 +29,7 @@ func processMessages(consumer *ProductsOnHandConsumer, w *kafka.Writer) {
 				break
 			}
 			log.Println("Error reading stock update: " + err.Error())
+			continue
 		}
 
 		if stockUpdate.Payload.Before == nil || stockUpdate.Payload.After == nil {

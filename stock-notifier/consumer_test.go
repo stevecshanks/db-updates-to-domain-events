@@ -7,8 +7,6 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-var ctx = context.Background()
-
 type testReader struct {
 	CloseCalled bool
 	Message     kafka.Message
@@ -39,7 +37,7 @@ func TestReadMessageReturnsStockUpdates(t *testing.T) {
 		}`)},
 	}}
 
-	msg, err := consumer.ReadMessage(ctx)
+	msg, err := consumer.ReadMessage(context.Background())
 
 	if err != nil {
 		t.Fatalf("Unexpected error: " + err.Error())

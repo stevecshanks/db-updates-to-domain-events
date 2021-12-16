@@ -2,24 +2,21 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-
-	kafka "github.com/segmentio/kafka-go"
 )
 
 type stockNotification struct {
-	Type      string
-	ProductID int `json:"product_id"`
-	Quantity  int
+	Type      string `json:"type"`
+	ProductID int    `json:"product_id"`
+	Quantity  int    `json:"quantity"`
 }
 
-func processMessages(consumer *ProductsOnHandConsumer, w *kafka.Writer) {
+func processMessages(consumer *ProductsOnHandConsumer, producer *StockNotificationProducer) {
 	ctx := context.Background()
 
 	for {
@@ -46,13 +43,8 @@ func processMessages(consumer *ProductsOnHandConsumer, w *kafka.Writer) {
 
 		if stockUpdate.Payload.After.Quantity == 0 {
 			notification := stockNotification{Type: "OutOfStock", ProductID: stockUpdate.Payload.After.ProductID, Quantity: 0}
-			b, err := json.Marshal(notification)
-			if err != nil {
-				log.Println("Error encoding notification: " + err.Error())
-				continue
-			}
 
-			err = w.WriteMessages(ctx, kafka.Message{Value: b})
+			err = producer.WriteMessage(ctx, notification)
 			if err != nil {
 				log.Println("Error writing notification: " + err.Error())
 			}
@@ -62,11 +54,7 @@ func processMessages(consumer *ProductsOnHandConsumer, w *kafka.Writer) {
 
 func main() {
 	consumer := NewProductsOnHandConsumer()
-
-	w := &kafka.Writer{
-		Addr:  kafka.TCP("kafka:9092"),
-		Topic: "stock-notifications",
-	}
+	producer := NewStockNotificationProducer()
 
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
@@ -81,14 +69,14 @@ func main() {
 		if err := consumer.Close(); err != nil {
 			log.Println("Failed to close consumer: ", err)
 		}
-		if err := w.Close(); err != nil {
-			log.Println("Failed to close writer: ", err)
+		if err := producer.Close(); err != nil {
+			log.Println("Failed to close producer: ", err)
 		}
 
 		done <- true
 	}()
 
-	processMessages(consumer, w)
+	processMessages(consumer, producer)
 
 	<-done
 

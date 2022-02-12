@@ -13,17 +13,20 @@ type UpdateType int
 
 const (
 	Uncategorized UpdateType = iota
-	Tombstone
+	BackInStock
 	OutOfStock
+	Tombstone
 )
 
 // String converts the UpdateType to a human-readable string
 func (ut UpdateType) String() string {
 	switch ut {
-	case Tombstone:
-		return "Tombstone"
+	case BackInStock:
+		return "BackInStock"
 	case OutOfStock:
 		return "OutOfStock"
+	case Tombstone:
+		return "Tombstone"
 	default:
 		return "Uncategorized"
 	}
@@ -41,8 +44,13 @@ func (u *Update) Type() UpdateType {
 	if u == nil {
 		return Tombstone
 	}
-	if u.OldQuantity != nil && u.NewQuantity != nil && *u.OldQuantity > 0 && *u.NewQuantity == 0 {
-		return OutOfStock
+	if u.OldQuantity != nil && u.NewQuantity != nil {
+		if *u.OldQuantity == 0 && *u.NewQuantity > 0 {
+			return BackInStock
+		}
+		if *u.OldQuantity > 0 && *u.NewQuantity == 0 {
+			return OutOfStock
+		}
 	}
 	return Uncategorized
 }
@@ -92,18 +100,27 @@ func (n notifier) processNextUpdate(ctx context.Context) error {
 		return fmt.Errorf("error from consumer: %w", err)
 	}
 
-	if update.Type() != OutOfStock {
+	switch update.Type() {
+	case BackInStock, OutOfStock:
+		err = n.notify(ctx, *update)
+		if err != nil {
+			return fmt.Errorf("error from producer: %w", err)
+		}
+	default:
 		log.Printf("Ignored update of type: %s\n", update.Type().String())
-		return nil
 	}
 
-	err = n.producer.WriteNotification(ctx, Notification{
+	return nil
+}
+
+func (n notifier) notify(ctx context.Context, update Update) error {
+	err := n.producer.WriteNotification(ctx, Notification{
 		ProductID: update.ProductID,
 		Quantity:  *update.NewQuantity,
 		Type:      update.Type(),
 	})
 	if err != nil {
-		return fmt.Errorf("error from producer: %w", err)
+		return err
 	}
 
 	return nil

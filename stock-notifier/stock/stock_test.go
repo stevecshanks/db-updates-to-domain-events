@@ -92,6 +92,36 @@ func TestNotifierWritesNotificationWhenProductGoesOutOfStock(t *testing.T) {
 	}
 }
 
+func TestNotifierWritesNotificationWhenProductIsBackInStock(t *testing.T) {
+	consumer := &fakeConsumer{}
+	producer := &fakeProducer{}
+	notifier := NewNotifier(consumer, producer)
+
+	consumer.AddUpdate(Update{
+		ProductID:   123,
+		OldQuantity: intPtr(0),
+		NewQuantity: intPtr(10),
+	})
+
+	err := notifier.Run(context.Background())
+
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if len(producer.Written) != 1 {
+		t.Fatalf("Expected 1 notification, got %d", len(producer.Written))
+	}
+	if producer.Written[0].Type != BackInStock {
+		t.Errorf("Incorrect type in notification: %s", producer.Written[0].Type)
+	}
+	if producer.Written[0].ProductID != 123 {
+		t.Errorf("Incorrect product ID in notification: %d", producer.Written[0].ProductID)
+	}
+	if producer.Written[0].Quantity != 10 {
+		t.Errorf("Incorrect quantityin notification: %d", producer.Written[0].Quantity)
+	}
+}
+
 func TestNotifierDoesNotWriteNotificationForStillInStockProduct(t *testing.T) {
 	consumer := &fakeConsumer{}
 	producer := &fakeProducer{}

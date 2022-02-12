@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 type fakeConsumer struct {
@@ -78,17 +80,9 @@ func TestNotifierWritesNotificationWhenProductGoesOutOfStock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if len(producer.Written) != 1 {
-		t.Fatalf("Expected 1 notification, got %d", len(producer.Written))
-	}
-	if producer.Written[0].Type != OutOfStock {
-		t.Errorf("Incorrect type in notification: %s", producer.Written[0].Type)
-	}
-	if producer.Written[0].ProductID != 123 {
-		t.Errorf("Incorrect product ID in notification: %d", producer.Written[0].ProductID)
-	}
-	if producer.Written[0].Quantity != 0 {
-		t.Errorf("Incorrect quantityin notification: %d", producer.Written[0].Quantity)
+	expected := []Notification{{OutOfStock, 123, 0}}
+	if diff := cmp.Diff(expected, producer.Written); diff != "" {
+		t.Errorf("Got unexpected notification(s): %s", diff)
 	}
 }
 
@@ -108,17 +102,9 @@ func TestNotifierWritesNotificationWhenProductIsBackInStock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if len(producer.Written) != 1 {
-		t.Fatalf("Expected 1 notification, got %d", len(producer.Written))
-	}
-	if producer.Written[0].Type != BackInStock {
-		t.Errorf("Incorrect type in notification: %s", producer.Written[0].Type)
-	}
-	if producer.Written[0].ProductID != 123 {
-		t.Errorf("Incorrect product ID in notification: %d", producer.Written[0].ProductID)
-	}
-	if producer.Written[0].Quantity != 10 {
-		t.Errorf("Incorrect quantityin notification: %d", producer.Written[0].Quantity)
+	expected := []Notification{{BackInStock, 123, 10}}
+	if diff := cmp.Diff(expected, producer.Written); diff != "" {
+		t.Errorf("Got unexpected notification(s): %s", diff)
 	}
 }
 

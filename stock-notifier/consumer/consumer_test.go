@@ -4,7 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/segmentio/kafka-go"
+	"github.com/stevecshanks/db-updates-to-domain-events.git/stock-notifier/stock"
 )
 
 type fakeReader struct {
@@ -13,6 +15,10 @@ type fakeReader struct {
 
 func (fr fakeReader) ReadMessage(context.Context) (kafka.Message, error) {
 	return fr.Message, nil
+}
+
+func intPtr(i int) *int {
+	return &i
 }
 
 func TestReadUpdateReadsFromKafkaStream(t *testing.T) {
@@ -35,18 +41,9 @@ func TestReadUpdateReadsFromKafkaStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if update.ProductID != 123 {
-		t.Errorf("Incorrect product ID %d", update.ProductID)
-	}
-	if update.OldQuantity == nil {
-		t.Errorf("Incorrect old quantity %d", update.OldQuantity)
-	} else if *update.OldQuantity != 5 {
-		t.Errorf("Incorrect old quantity %d", *update.OldQuantity)
-	}
-	if update.NewQuantity == nil {
-		t.Errorf("Incorrect new quantity %d", update.NewQuantity)
-	} else if *update.NewQuantity != 10 {
-		t.Errorf("Incorrect new quantity %d", *update.NewQuantity)
+	expected := &stock.Update{ProductID: 123, OldQuantity: intPtr(5), NewQuantity: intPtr(10)}
+	if diff := cmp.Diff(expected, update); diff != "" {
+		t.Errorf("Unexpcted update: %s", diff)
 	}
 }
 
@@ -66,16 +63,9 @@ func TestReadUpdateHandlesMissingBefore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if update.ProductID != 123 {
-		t.Errorf("Incorrect product ID %d", update.ProductID)
-	}
-	if update.OldQuantity != nil {
-		t.Errorf("Incorrect old quantity %d", *update.OldQuantity)
-	}
-	if update.NewQuantity == nil {
-		t.Errorf("Incorrect new quantity %d", update.NewQuantity)
-	} else if *update.NewQuantity != 10 {
-		t.Errorf("Incorrect new quantity %d", *update.NewQuantity)
+	expected := &stock.Update{ProductID: 123, NewQuantity: intPtr(10)}
+	if diff := cmp.Diff(expected, update); diff != "" {
+		t.Errorf("Unexpcted update: %s", diff)
 	}
 }
 
@@ -95,16 +85,9 @@ func TestReadUpdateHandlesMissingAfter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if update.ProductID != 123 {
-		t.Errorf("Incorrect product ID %d", update.ProductID)
-	}
-	if update.OldQuantity == nil {
-		t.Errorf("Incorrect old quantity %d", update.OldQuantity)
-	} else if *update.OldQuantity != 5 {
-		t.Errorf("Incorrect old quantity %d", *update.OldQuantity)
-	}
-	if update.NewQuantity != nil {
-		t.Errorf("Incorrect new quantity %d", *update.NewQuantity)
+	expected := &stock.Update{ProductID: 123, OldQuantity: intPtr(5)}
+	if diff := cmp.Diff(expected, update); diff != "" {
+		t.Errorf("Unexpcted update: %s", diff)
 	}
 }
 

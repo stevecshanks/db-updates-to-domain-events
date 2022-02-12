@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/segmentio/kafka-go"
 	"github.com/stevecshanks/db-updates-to-domain-events.git/stock-notifier/stock"
 )
@@ -28,11 +29,10 @@ func TestWriteNotificationWritesToKafkaWriter(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if len(writer.Written) != 1 {
-		t.Fatalf("Unexpected number of messages written")
+	expected := []kafka.Message{
+		{Value: []byte(`{"type":"OutOfStock","product_id":123,"quantity":5}`)},
 	}
-	lastMessage := string(writer.Written[0].Value)
-	if lastMessage != `{"type":"OutOfStock","product_id":123,"quantity":5}` {
-		t.Fatalf("Unexpected message written: " + lastMessage)
+	if diff := cmp.Diff(expected, writer.Written); diff != "" {
+		t.Errorf("Got unexpected message(s): %s", diff)
 	}
 }

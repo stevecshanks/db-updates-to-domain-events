@@ -2,83 +2,60 @@ package main
 
 import (
 	"context"
-	"errors"
-	"io"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/segmentio/kafka-go"
+	"github.com/stevecshanks/db-updates-to-domain-events.git/stock-notifier/consumer"
+	"github.com/stevecshanks/db-updates-to-domain-events.git/stock-notifier/producer"
+	"github.com/stevecshanks/db-updates-to-domain-events.git/stock-notifier/stock"
 )
 
-type stockNotification struct {
-	Type      string `json:"type"`
-	ProductID int    `json:"product_id"`
-	Quantity  int    `json:"quantity"`
-}
-
-func processMessages(consumer *ProductsOnHandConsumer, producer *StockNotificationProducer) {
-	ctx := context.Background()
-
-	for {
-		stockUpdate, err := consumer.ReadMessage(ctx)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			log.Println("Error reading stock update: " + err.Error())
-			continue
-		}
-
-		if stockUpdate.Payload.Before == nil || stockUpdate.Payload.After == nil {
-			log.Println("Message was for create/delete, ignoring...")
-			continue
-		}
-
-		if stockUpdate.Payload.Before.Quantity == stockUpdate.Payload.After.Quantity {
-			log.Println("Message was not for quantity change, ignoring...")
-			continue
-		}
-
-		log.Printf("Product with ID %d had quantity changed from %d to %d", stockUpdate.Payload.Before.ProductID, stockUpdate.Payload.Before.Quantity, stockUpdate.Payload.After.Quantity)
-
-		if stockUpdate.Payload.After.Quantity == 0 {
-			notification := stockNotification{Type: "OutOfStock", ProductID: stockUpdate.Payload.After.ProductID, Quantity: 0}
-
-			err = producer.WriteMessage(ctx, notification)
-			if err != nil {
-				log.Println("Error writing notification: " + err.Error())
-			}
-		}
-	}
-}
-
 func main() {
-	consumer := NewProductsOnHandConsumer()
-	producer := NewStockNotificationProducer()
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"kafka:9092"},
+		Topic:   "dbserver1.inventory.products_on_hand",
+	})
+	defer func() {
+		err := reader.Close()
+		if err != nil {
+			log.Printf("Error closing reader: %v", err)
+		}
+	}()
+
+	writer := &kafka.Writer{
+		Addr:  kafka.TCP("kafka:9092"),
+		Topic: "stock-notifications",
+	}
+	defer func() {
+		err := writer.Close()
+		if err != nil {
+			log.Printf("Error closing writer: %v", err)
+		}
+	}()
+
+	consumer := consumer.New(reader)
+	producer := producer.New(writer)
+	notifier := stock.NewNotifier(consumer, producer)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 
-	done := make(chan bool, 1)
-
 	go func() {
 		<-shutdown
-
 		log.Println("Gracefully shutting down...")
-
-		if err := consumer.Close(); err != nil {
-			log.Println("Failed to close consumer: ", err)
-		}
-		if err := producer.Close(); err != nil {
-			log.Println("Failed to close producer: ", err)
-		}
-
-		done <- true
+		cancel()
 	}()
 
-	processMessages(consumer, producer)
-
-	<-done
+	err := notifier.Run(ctx)
+	if err != nil {
+		log.Printf("Error from notifier: %v", err)
+	}
 
 	log.Println("Done!")
 }

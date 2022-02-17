@@ -3,47 +3,40 @@ package stock
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
 
+type queueItem struct {
+	update *Update
+	err    error
+}
+
 type fakeConsumer struct {
-	queue    []interface{}
-	queuePos int
+	queue []queueItem
 }
 
 func (fc *fakeConsumer) AddUpdate(update Update) {
-	fc.queue = append(fc.queue, update)
+	fc.queue = append(fc.queue, queueItem{&update, nil})
 }
 
 func (fc *fakeConsumer) AddTombstone() {
-	fc.queue = append(fc.queue, nil)
+	fc.queue = append(fc.queue, queueItem{nil, nil})
 }
 
 func (fc *fakeConsumer) AddError(err error) {
-	fc.queue = append(fc.queue, err)
+	fc.queue = append(fc.queue, queueItem{nil, err})
 }
 
 func (fc *fakeConsumer) ReadUpdate(context.Context) (*Update, error) {
-	if fc.queuePos >= len(fc.queue) {
+	if len(fc.queue) == 0 {
 		return nil, io.EOF
 	}
-	next := fc.queue[fc.queuePos]
-	fc.queuePos++
-
-	switch t := next.(type) {
-	case Update:
-		return &t, nil
-	case nil:
-		return nil, nil
-	case error:
-		return nil, t
-	default:
-		return nil, fmt.Errorf("unknown type in queue: %v", t)
-	}
+	next, remaining := fc.queue[0], fc.queue[1:]
+	fc.queue = remaining
+	return next.update, next.err
 }
 
 type fakeProducer struct {

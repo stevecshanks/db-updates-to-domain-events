@@ -102,25 +102,16 @@ func (n notifier) processNextUpdate(ctx context.Context) error {
 
 	switch update.Type() {
 	case BackInStock, OutOfStock:
-		err = n.notify(ctx, *update)
+		err = n.producer.WriteNotification(ctx, Notification{
+			ProductID: update.ProductID,
+			Quantity:  *update.NewQuantity,
+			Type:      update.Type(),
+		})
 		if err != nil {
 			return fmt.Errorf("error from producer: %w", err)
 		}
 	default:
 		log.Printf("Ignored update of type: %s\n", update.Type().String())
-	}
-
-	return nil
-}
-
-func (n notifier) notify(ctx context.Context, update Update) error {
-	err := n.producer.WriteNotification(ctx, Notification{
-		ProductID: update.ProductID,
-		Quantity:  *update.NewQuantity,
-		Type:      update.Type(),
-	})
-	if err != nil {
-		return err
 	}
 
 	return nil

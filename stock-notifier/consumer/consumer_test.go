@@ -23,18 +23,21 @@ func intPtr(i int) *int {
 
 func TestReadUpdateReadsFromKafkaStream(t *testing.T) {
 	consumer := New(fakeReader{
-		Message: kafka.Message{Value: []byte(`{
-			"payload": {
-				"before": {
-					"product_id": 123,
-					"quantity": 5
-				},
-				"after" : {
-					"product_id": 123,
-					"quantity": 10
+		kafka.Message{
+			Key: []byte(`{"payload":{"product_id":123}}`),
+			Value: []byte(`{
+				"payload": {
+					"before": {
+						"product_id": 123,
+						"quantity": 5
+					},
+					"after" : {
+						"product_id": 123,
+						"quantity": 10
+					}
 				}
-			}
-		}`)},
+			}`),
+		},
 	})
 
 	update, err := consumer.ReadUpdate(context.Background())
@@ -49,14 +52,17 @@ func TestReadUpdateReadsFromKafkaStream(t *testing.T) {
 
 func TestReadUpdateHandlesMissingBefore(t *testing.T) {
 	consumer := New(fakeReader{
-		Message: kafka.Message{Value: []byte(`{
-			"payload": {
-				"after" : {
-					"product_id": 123,
-					"quantity": 10
+		kafka.Message{
+			Key: []byte(`{"payload":{"product_id":123}}`),
+			Value: []byte(`{
+				"payload": {
+					"after" : {
+						"product_id": 123,
+						"quantity": 10
+					}
 				}
-			}
-		}`)},
+			}`),
+		},
 	})
 
 	update, err := consumer.ReadUpdate(context.Background())
@@ -71,14 +77,17 @@ func TestReadUpdateHandlesMissingBefore(t *testing.T) {
 
 func TestReadUpdateHandlesMissingAfter(t *testing.T) {
 	consumer := New(fakeReader{
-		Message: kafka.Message{Value: []byte(`{
-			"payload": {
-				"before": {
-					"product_id": 123,
-					"quantity": 5
+		kafka.Message{
+			Key: []byte(`{"payload":{"product_id":123}}`),
+			Value: []byte(`{
+				"payload": {
+					"before": {
+						"product_id": 123,
+						"quantity": 5
+					}
 				}
-			}
-		}`)},
+			}`),
+		},
 	})
 
 	update, err := consumer.ReadUpdate(context.Background())
@@ -93,7 +102,10 @@ func TestReadUpdateHandlesMissingAfter(t *testing.T) {
 
 func TestReadUpdateReturnsErrorForBlankPayload(t *testing.T) {
 	consumer := New(fakeReader{
-		Message: kafka.Message{Value: []byte(`{"payload": {}}`)},
+		kafka.Message{
+			Key:   []byte(`{"payload":{"product_id":123}}`),
+			Value: []byte(`{"payload": {}}`),
+		},
 	})
 
 	_, err := consumer.ReadUpdate(context.Background())
@@ -104,18 +116,21 @@ func TestReadUpdateReturnsErrorForBlankPayload(t *testing.T) {
 
 func TestReadUpdateReturnsErrorIfProductIDChanges(t *testing.T) {
 	consumer := New(fakeReader{
-		Message: kafka.Message{Value: []byte(`{
-			"payload": {
-				"before": {
-					"product_id": 123,
-					"quantity": 1
-				},
-				"after" : {
-					"product_id": 456,
-					"quantity": 1
+		kafka.Message{
+			Key: []byte(`{"payload":{"product_id":456}}`),
+			Value: []byte(`{
+				"payload": {
+					"before": {
+						"product_id": 123,
+						"quantity": 1
+					},
+					"after" : {
+						"product_id": 456,
+						"quantity": 1
+					}
 				}
-			}
-		}`)},
+			}`),
+		},
 	})
 
 	_, err := consumer.ReadUpdate(context.Background())
@@ -126,7 +141,9 @@ func TestReadUpdateReturnsErrorIfProductIDChanges(t *testing.T) {
 
 func TestReadUpdateReturnsNilForTombstoneMessages(t *testing.T) {
 	consumer := New(fakeReader{
-		Message: kafka.Message{},
+		kafka.Message{
+			Key: []byte(`{"payload":{"product_id":123}}`),
+		},
 	})
 
 	update, err := consumer.ReadUpdate(context.Background())

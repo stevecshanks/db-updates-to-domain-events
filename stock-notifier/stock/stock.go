@@ -15,7 +15,6 @@ const (
 	Uncategorized UpdateType = iota
 	BackInStock
 	OutOfStock
-	Tombstone
 )
 
 // String converts the UpdateType to a human-readable string
@@ -25,8 +24,6 @@ func (ut UpdateType) String() string {
 		return "BackInStock"
 	case OutOfStock:
 		return "OutOfStock"
-	case Tombstone:
-		return "Tombstone"
 	default:
 		return "Uncategorized"
 	}
@@ -40,10 +37,7 @@ type Update struct {
 }
 
 // Type returns the UpdateType that this Update represents
-func (u *Update) Type() UpdateType {
-	if u == nil {
-		return Tombstone
-	}
+func (u Update) Type() UpdateType {
 	if u.OldQuantity != nil && u.NewQuantity != nil {
 		if *u.OldQuantity == 0 && *u.NewQuantity > 0 {
 			return BackInStock

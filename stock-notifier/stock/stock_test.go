@@ -22,8 +22,8 @@ func (fc *fakeConsumer) AddUpdate(update Update) {
 	fc.queue = append(fc.queue, queueItem{&update, nil})
 }
 
-func (fc *fakeConsumer) AddTombstone() {
-	fc.queue = append(fc.queue, queueItem{nil, nil})
+func (fc *fakeConsumer) AddTombstone(productID int) {
+	fc.queue = append(fc.queue, queueItem{&Update{ProductID: productID}, nil})
 }
 
 func (fc *fakeConsumer) AddError(err error) {
@@ -151,7 +151,7 @@ func TestNotifierDoesNotWriteNotificationForDeletedProduct(t *testing.T) {
 		ProductID:   123,
 		OldQuantity: intPtr(0),
 	})
-	consumer.AddTombstone()
+	consumer.AddTombstone(123)
 
 	err := notifier.Run(context.Background())
 

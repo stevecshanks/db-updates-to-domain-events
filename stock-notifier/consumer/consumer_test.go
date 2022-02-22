@@ -100,6 +100,23 @@ func TestReadUpdateHandlesMissingAfter(t *testing.T) {
 	}
 }
 
+func TestReadUpdateHandlesTombstoneMessages(t *testing.T) {
+	consumer := New(fakeReader{
+		kafka.Message{
+			Key: []byte(`{"payload":{"product_id":123}}`),
+		},
+	})
+
+	update, err := consumer.ReadUpdate(context.Background())
+	if err != nil {
+		t.Errorf("Expected no error but was %v", err)
+	}
+	expected := &stock.Update{ProductID: 123}
+	if diff := cmp.Diff(expected, update); diff != "" {
+		t.Errorf("Unexpcted update: %s", diff)
+	}
+}
+
 func TestReadUpdateReturnsErrorForBlankPayload(t *testing.T) {
 	consumer := New(fakeReader{
 		kafka.Message{
@@ -136,21 +153,5 @@ func TestReadUpdateReturnsErrorIfProductIDChanges(t *testing.T) {
 	_, err := consumer.ReadUpdate(context.Background())
 	if err == nil {
 		t.Fatalf("Expected error but was nil")
-	}
-}
-
-func TestReadUpdateReturnsNilForTombstoneMessages(t *testing.T) {
-	consumer := New(fakeReader{
-		kafka.Message{
-			Key: []byte(`{"payload":{"product_id":123}}`),
-		},
-	})
-
-	update, err := consumer.ReadUpdate(context.Background())
-	if err != nil {
-		t.Errorf("Expected no error but was %v", err)
-	}
-	if update != nil {
-		t.Errorf("Expected no update but was %v", update)
 	}
 }

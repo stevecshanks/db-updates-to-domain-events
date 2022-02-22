@@ -65,7 +65,7 @@ func (c consumer) ReadUpdate(ctx context.Context) (*stock.Update, error) {
 	}
 
 	if isTombstone(kafkaMessage) {
-		return nil, nil
+		return &stock.Update{ProductID: k.Payload.ProductID}, nil
 	}
 
 	var m message

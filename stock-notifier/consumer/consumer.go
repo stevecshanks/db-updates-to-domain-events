@@ -10,25 +10,33 @@ import (
 	"github.com/stevecshanks/db-updates-to-domain-events.git/stock-notifier/stock"
 )
 
-type updateState struct {
+type state struct {
 	ProductID int `json:"product_id"`
 	Quantity  int `json:"quantity"`
 }
 
-type updatePayload struct {
-	Before *updateState `json:"before"`
-	After  *updateState `json:"after"`
+type messagePayload struct {
+	Before *state `json:"before"`
+	After  *state `json:"after"`
 }
 
-type updateMessage struct {
-	Payload updatePayload `json:"payload"`
+type message struct {
+	Payload messagePayload `json:"payload"`
 }
 
-func (um updateMessage) Validate() error {
-	if um.Payload.Before == nil && um.Payload.After == nil {
+type keyPayload struct {
+	ProductID int `json:"product_id"`
+}
+
+type key struct {
+	Payload keyPayload
+}
+
+func (m message) Validate() error {
+	if m.Payload.Before == nil && m.Payload.After == nil {
 		return errors.New("payload is empty")
 	}
-	if um.Payload.Before != nil && um.Payload.After != nil && um.Payload.Before.ProductID != um.Payload.After.ProductID {
+	if m.Payload.Before != nil && m.Payload.After != nil && m.Payload.Before.ProductID != m.Payload.After.ProductID {
 		return errors.New("product ids do not match")
 	}
 
@@ -50,37 +58,43 @@ func (c consumer) ReadUpdate(ctx context.Context) (*stock.Update, error) {
 		return nil, err
 	}
 
-	if isTombstone(kafkaMessage) {
-		return nil, nil
-	}
-
-	var message updateMessage
-	err = json.Unmarshal(kafkaMessage.Value, &message)
+	var k key
+	err = json.Unmarshal(kafkaMessage.Key, &k)
 	if err != nil {
 		return nil, err
 	}
 
-	err = message.Validate()
+	if isTombstone(kafkaMessage) {
+		return nil, nil
+	}
+
+	var m message
+	err = json.Unmarshal(kafkaMessage.Value, &m)
+	if err != nil {
+		return nil, err
+	}
+
+	err = m.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("invalid message: %w", err)
 	}
 
-	return createUpdate(message), nil
+	return createUpdate(k, m), nil
 }
 
 func isTombstone(kafkaMessage kafka.Message) bool {
 	return len(kafkaMessage.Value) == 0
 }
 
-func createUpdate(message updateMessage) *stock.Update {
-	update := stock.Update{}
-	if message.Payload.Before != nil {
-		update.ProductID = message.Payload.Before.ProductID
-		update.OldQuantity = &message.Payload.Before.Quantity
+func createUpdate(k key, m message) *stock.Update {
+	update := stock.Update{
+		ProductID: k.Payload.ProductID,
 	}
-	if message.Payload.After != nil {
-		update.ProductID = message.Payload.After.ProductID
-		update.NewQuantity = &message.Payload.After.Quantity
+	if m.Payload.Before != nil {
+		update.OldQuantity = &m.Payload.Before.Quantity
+	}
+	if m.Payload.After != nil {
+		update.NewQuantity = &m.Payload.After.Quantity
 	}
 
 	return &update
